@@ -43,14 +43,20 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-semibold">📈 Dashboard Analisa Saham</h1>
-          <p className="text-gray-400 text-sm mt-1">Real-time data · Indikator teknikal · AI Analysis</p>
+    <main className="min-h-screen bg-gray-950 text-white">
+      {/* Top bar */}
+      <div className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📈</span>
+            <span className="font-semibold text-sm tracking-wide">Dashboard Saham</span>
+            <span className="text-gray-600 text-xs hidden sm:inline">· BEI Real-time</span>
+          </div>
+          <span className="text-gray-500 text-xs">Data: Yahoo Finance</span>
         </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
 
         {/* Search */}
         <SearchBar onSearch={fetchStock} loading={loading} />
@@ -143,6 +149,14 @@ export default function Home() {
         )}
 
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-800 mt-12">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-600">
+          <span>Data bersumber dari Yahoo Finance · Harga bisa mengalami keterlambatan</span>
+          <span>⚠️ Bukan saran investasi — selalu lakukan riset mandiri</span>
+        </div>
+      </footer>
     </main>
   );
 }
