@@ -2,7 +2,7 @@
 
 Dashboard analisis saham Indonesia real-time dengan indikator teknikal, data fundamental, prediksi harga, perbandingan peers, simulasi portofolio, dan chat AI.
 
-> **Demo:** _(coming soon setelah deploy)_
+> **Demo:** [dashboard-saham.vercel.app](https://dashboard-saham.vercel.app)
 
 ---
 
