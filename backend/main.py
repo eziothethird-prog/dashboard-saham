@@ -8,7 +8,7 @@ import os
 
 app = FastAPI()
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000", "https://dashboard-saham-production.up.railway.app")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://dashboard-saham-production.up.railway.app")
 allowed_origins = [o.strip() for o in _raw_origins.split(",")]
 
 app.add_middleware(
