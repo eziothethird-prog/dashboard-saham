@@ -40,7 +40,12 @@ export async function POST(req) {
           "HTTP-Referer": "http://localhost:3000",
         },
         body: JSON.stringify({
-          model: "google/gemma-4-31b-it:free",
+          // Model gratis sering kena rate limit (429); OpenRouter pindah ke model berikutnya saat gagal.
+          models: [
+            "google/gemma-4-31b-it:free",
+            "google/gemma-4-26b-a4b-it:free",
+            "openrouter/free",
+          ],
           messages: [
             { role: "system", content: systemContext },
             { role: "user",   content: message },

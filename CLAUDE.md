@@ -33,7 +33,7 @@ dashboard-saham/
 |-------|-----------|
 | Frontend | Next.js 16.2.7, React 19, Tailwind CSS v4, Recharts 3 |
 | Backend | FastAPI 0.136, Python, yfinance 1.4, pandas |
-| AI Chat | OpenRouter API (model: `google/gemma-4-31b-it:free`) |
+| AI Chat | OpenRouter API (`models` fallback: gemma-4-31b → gemma-4-26b → `openrouter/free`) |
 | Data | Yahoo Finance via yfinance (tidak ada DB lokal) |
 
 ## Environment Variables
