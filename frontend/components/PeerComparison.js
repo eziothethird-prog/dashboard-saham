@@ -6,7 +6,7 @@ export default function PeerComparison({ ticker, self: selfRow, onSelect }) {
   // Result is keyed by ticker; loading is simply "no result for this ticker yet".
   const [result, setResult] = useState(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const API = process.env.NEXT_PUBLIC_API_URL ?? ""; // kosong = backend satu domain (Vercel Services, /stock/*)
 
   useEffect(() => {
     let alive = true;

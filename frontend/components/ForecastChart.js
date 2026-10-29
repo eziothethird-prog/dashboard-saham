@@ -12,7 +12,7 @@ export default function ForecastChart({ ticker, historis }) {
   const [result, setResult] = useState(null);
   const key = `${ticker}|${days}`;
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const API = process.env.NEXT_PUBLIC_API_URL ?? ""; // kosong = backend satu domain (Vercel Services, /stock/*)
 
   useEffect(() => {
     let alive = true;

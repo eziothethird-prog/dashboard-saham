@@ -122,22 +122,15 @@ Semua saham Indonesia menggunakan suffix `.JK` — SearchBar otomatis menambahka
 
 ## Deploy
 
-| Platform | Service |
-|----------|---------|
-| Frontend | [Vercel](https://vercel.com) — connect GitHub, set env vars |
-| Backend | [Vercel](https://vercel.com) — project kedua dari repo yang sama, Root Directory `backend` |
+Satu project Vercel dengan **Services** (`vercel.json` di root): Next.js (`frontend/`) di `/`, FastAPI (`backend/`) di `/stock/*`, satu domain.
 
-Backend dideteksi otomatis sebagai FastAPI (`backend/main.py`, Python dari `backend/.python-version`, `maxDuration` di `backend/vercel.json`).
-Environment variable backend (opsional, default sudah berisi kedua origin ini; preview `dashboard-saham-*.vercel.app` selalu diizinkan):
-```
-ALLOWED_ORIGINS=https://dashboard-saham.vercel.app,http://localhost:3000
-```
+Saat import di Vercel: Root Directory `./`, Application Preset **Services**.
 
-Environment variable frontend:
+Environment variable project:
 ```
-NEXT_PUBLIC_API_URL=https://<project-backend>.vercel.app
 OPENROUTER_API_KEY=sk-or-v1-...
 ```
+`NEXT_PUBLIC_API_URL` dikosongkan di Vercel (frontend memanggil `/stock/*` di domain yang sama). Untuk lokal isi `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` di `frontend/.env.local`.
 
 ---
 

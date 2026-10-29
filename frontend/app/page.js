@@ -44,7 +44,7 @@ export default function Home() {
   const [chatOpen, setChatOpen] = useState(false);
   const [lastTicker, setLastTicker] = useState(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL;
+  const API = process.env.NEXT_PUBLIC_API_URL ?? ""; // kosong = backend satu domain (Vercel Services, /stock/*)
 
   async function fetchStock(ticker, p = period) {
     setLoading(true);
