@@ -7,6 +7,51 @@ const SARAN = [
   "Bagaimana valuasinya dibanding peers?",
 ];
 
+// Inline markdown: **bold**, *italic* / _italic_, `code`. Built as React nodes, never as HTML.
+function inline(text) {
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g).map((part, i) => {
+    if (/^\*\*.+\*\*$/.test(part)) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+    if (/^`.+`$/.test(part)) return <code key={i} className="num text-[12px] bg-raised px-1 rounded">{part.slice(1, -1)}</code>;
+    if (/^(\*|_).+\1$/.test(part)) return <em key={i}>{part.slice(1, -1)}</em>;
+    return part;
+  });
+}
+
+// Block markdown the model uses: headings, bullet and numbered lists, paragraphs, rules.
+export function Markdown({ text }) {
+  const blocks = [];
+  let list = null;
+  const flush = () => { if (list) { blocks.push(list); list = null; } };
+
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    const bullet = line.match(/^[-*•]\s+(.*)/);
+    const numbered = line.match(/^(\d+)[.)]\s+(.*)/);
+    if (bullet || numbered) {
+      const type = bullet ? "ul" : "ol";
+      if (!list || list.type !== type) { flush(); list = { type, items: [] }; }
+      list.items.push(bullet ? bullet[1] : numbered[2]);
+      continue;
+    }
+    flush();
+    if (!line || /^(-{3,}|\*{3,})$/.test(line)) continue;
+    const heading = line.match(/^#{1,6}\s+(.*)/);
+    blocks.push(heading ? { type: "h", text: heading[1] } : { type: "p", text: line });
+  }
+  flush();
+
+  return blocks.map((b, i) => {
+    if (b.type === "h") return <p key={i} className="font-semibold pt-1">{inline(b.text)}</p>;
+    if (b.type === "p") return <p key={i}>{inline(b.text)}</p>;
+    const List = b.type;
+    return (
+      <List key={i} className={`pl-5 space-y-1 ${b.type === "ul" ? "list-disc" : "list-decimal"} marker:text-muted`}>
+        {b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}
+      </List>
+    );
+  });
+}
+
 export default function ChatAI({ open, onClose, stockData, infoData }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -78,11 +123,11 @@ export default function ChatAI({ open, onClose, stockData, infoData }) {
         )}
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
-            <p className={`whitespace-pre-wrap leading-relaxed ${m.role === "user"
-              ? "max-w-[85%] bg-raised px-3 py-2 rounded-md"
-              : m.error ? "text-neg-ink" : "text-ink"}`}>
-              {m.content}
-            </p>
+            {m.role === "user" ? (
+              <p className="whitespace-pre-wrap leading-relaxed max-w-[85%] bg-raised px-3 py-2 rounded-md">{m.content}</p>
+            ) : (
+              <div className={`leading-relaxed space-y-2 ${m.error ? "text-neg-ink" : "text-ink"}`}><Markdown text={m.content} /></div>
+            )}
           </div>
         ))}
         {loading && <p className="text-muted">Menulis jawaban…</p>}
