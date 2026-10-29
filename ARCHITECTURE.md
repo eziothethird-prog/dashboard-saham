@@ -134,13 +134,13 @@ yfinance tidak async, jadi pakai thread pool untuk performa.
 ```
 Frontend → Vercel
   - connect GitHub repo
-  - set env: NEXT_PUBLIC_API_URL=https://backend.railway.app
+  - set env: NEXT_PUBLIC_API_URL=https://<project-backend>.vercel.app
   - set env: OPENROUTER_API_KEY=sk-or-v1-...
 
-Backend → Railway
-  - Dockerfile atau Nixpacks auto-detect Python
-  - set PORT env
-  - CORS allow origin: https://dashboard-saham.vercel.app
+Backend → Vercel (project kedua, Root Directory: backend)
+  - FastAPI dideteksi otomatis dari backend/main.py
+  - Python 3.14 (backend/.python-version), maxDuration 60s (backend/vercel.json)
+  - CORS: ALLOWED_ORIGINS + regex preview dashboard-saham-*.vercel.app
 ```
 
 Perlu update `allow_origins` di `main.py` sebelum deploy:

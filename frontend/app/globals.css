@@ -1,10 +1,80 @@
 @import "tailwindcss";
 
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Style: data-terminal (taste-skill app sheet, seed 994540744). Colour only on data, status and the one action. */
+@theme {
+  --color-ground: #171719;
+  --color-surface: #131217;
+  --color-raised: #212023;
+  --color-line: #222224;
+  --color-rule: #1b1a1f;
+  --color-control: #3a3a3e;
+  --color-ink: #ffffff;
+  --color-muted: #8a8c92;
+  --color-faint: #6e7076;
+  --color-accent: #4a8ad6;
+  --color-positive: #44a282;
+  --color-negative: #e5566f;
+  --color-warning: #d9a441;
+  --color-pos-bg: #1b2828;
+  --color-pos-ink: #5fc39c;
+  --color-neg-bg: #2c1a20;
+  --color-neg-ink: #e5566f;
+  --color-warn-bg: #2a2416;
+  --color-warn-ink: #d9a441;
+
+  --font-sans: var(--font-public-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 * {
   box-sizing: border-box;
 }
+
+html {
+  background: var(--color-ground);
+  color: var(--color-ink);
+  color-scheme: dark;
+}
+
+body {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Every figure stacks digit for digit. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+}
+
+:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.4;
+}
+
+@keyframes pulse-soft {
+  50% { opacity: 0.5; }
+}
+.skeleton {
+  background: var(--color-raised);
+  border-radius: 4px;
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }

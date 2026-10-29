@@ -125,11 +125,18 @@ Semua saham Indonesia menggunakan suffix `.JK` — SearchBar otomatis menambahka
 | Platform | Service |
 |----------|---------|
 | Frontend | [Vercel](https://vercel.com) — connect GitHub, set env vars |
-| Backend | [Railway](https://railway.app) — auto-detect Python, set `ALLOWED_ORIGINS` |
+| Backend | [Vercel](https://vercel.com) — project kedua dari repo yang sama, Root Directory `backend` |
 
-Environment variable di Railway:
+Backend dideteksi otomatis sebagai FastAPI (`backend/main.py`, Python dari `backend/.python-version`, `maxDuration` di `backend/vercel.json`).
+Environment variable backend (opsional, default sudah berisi kedua origin ini; preview `dashboard-saham-*.vercel.app` selalu diizinkan):
 ```
 ALLOWED_ORIGINS=https://dashboard-saham.vercel.app,http://localhost:3000
+```
+
+Environment variable frontend:
+```
+NEXT_PUBLIC_API_URL=https://<project-backend>.vercel.app
+OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
 ---

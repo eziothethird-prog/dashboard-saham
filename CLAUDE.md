@@ -57,8 +57,17 @@ cd frontend && npm run dev   # → localhost:3000
 - Saham Indonesia pakai suffix `.JK` (BBCA → BBCA.JK). SearchBar auto-append `.JK` kalau user tidak tulis.
 - `ma50` bisa `null` kalau period pendek (< 50 data poin). Semua komponen sudah handle null.
 - Backend return `perubahan` dan `perubahan_pct` untuk % change harga hari ini.
-- Peer comparison di-fetch otomatis saat ticker berubah; hardcode di `SEKTOR_PEERS` dict di `main.py`.
+- Peer comparison di-fetch otomatis saat ticker berubah; hardcode di `SEKTOR_PEERS` dict di `main.py`; grup consumer goods diisi dari `CONSUMER_GROUPS`.
+- Fokus daftar populer: consumer goods (MYOR, ICBP, INDF, UNVR, GGRM, HMSP, CMRY, JPFA).
+- `/stock/{t}/info`: revenue & net income growth dihitung dari `income_stmt` tahunan (FY terbaru vs sebelumnya), DER = total liabilitas / ekuitas dari `balance_sheet`. Growth kuartalan `info` yfinance sengaja tidak dipakai (tidak stabil).
 - Chat AI menggunakan OpenRouter (bukan Google Gemini langsung) karena free tier Gemini tidak tersedia.
+
+## Desain UI
+- Style "data-terminal" (taste-skill app sheet, `frontend/.taste-skill/direction.json`). Token warna di `@theme` `app/globals.css` (`bg-surface`, `text-muted`, `text-positive`, dst.) — jangan pakai warna default Tailwind.
+- Font: Public Sans untuk teks, IBM Plex Mono (`.num`) hanya untuk angka.
+- Warna hanya di data: garis harga biru `#4a8ad6`, hijau/merah hanya untuk perubahan harga dan untung/rugi. Seleksi (tab periode, ticker aktif) = garis bawah 1px aksen.
+- Format angka lewat `lib/format.js` (id-ID, tanda + / − di teks).
+- `?t=BBCA` di URL langsung membuka saham.
 
 ## Bug yang Sudah Difix
 - `ma50 = NaN` saat period pendek → sekarang return `None`, sudah handle di semua komponen

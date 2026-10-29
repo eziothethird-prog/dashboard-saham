@@ -1,24 +1,38 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 
-export default function ChatAI({ stockData, infoData }) {
-  const [open, setOpen]       = useState(false);
+const SARAN = [
+  "Apakah sekarang waktu yang baik untuk beli?",
+  "Jelaskan arti RSI dan MACD saham ini",
+  "Bagaimana valuasinya dibanding peers?",
+];
+
+export default function ChatAI({ open, onClose, stockData, infoData }) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput]     = useState("");
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef             = useRef(null);
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+  const kode = stockData?.ticker?.replace(".JK", "");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return;
-    const userMsg = input.trim();
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onKey = e => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  async function sendMessage(text = input) {
+    const userMsg = text.trim();
+    if (!userMsg || loading) return;
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: userMsg }]);
     setLoading(true);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -26,62 +40,65 @@ export default function ChatAI({ stockData, infoData }) {
         body: JSON.stringify({ message: userMsg, stockData, infoData }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "ai", content: data.reply }]);
+      setMessages(prev => [...prev, { role: "ai", content: data.reply || "AI tidak memberi jawaban. Coba lagi." }]);
     } catch {
-      setMessages(prev => [...prev, { role: "ai", content: "Gagal menghubungi AI. Coba lagi." }]);
+      setMessages(prev => [...prev, { role: "ai", content: "Gagal menghubungi AI. Coba lagi.", error: true }]);
     } finally {
       setLoading(false);
     }
   }
 
+  if (!open) return null;
+
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      {open && (
-        <div className="mb-3 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl flex flex-col" style={{ height: 420 }}>
-          <div className="px-4 py-3 border-b border-gray-800 flex justify-between items-center">
-            <span className="text-sm font-medium">Chat AI — {stockData?.ticker}</span>
-            <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-white text-lg leading-none">×</button>
+    <aside role="dialog" aria-label={`Tanya AI tentang ${kode}`}
+      className="fixed z-40 inset-0 md:inset-auto md:right-4 md:bottom-4 md:top-18 md:w-[380px]
+                 bg-surface md:border md:border-control md:rounded-md shadow-[0_12px_28px_rgba(0,0,0,.4)] flex flex-col">
+      <div className="h-14 px-5 flex items-center justify-between border-b border-line shrink-0">
+        <h2 className="text-base font-semibold">Tanya AI <span className="num font-normal text-muted">{kode}</span></h2>
+        <button onClick={onClose} aria-label="Tutup chat"
+          className="w-8 h-8 grid place-items-center rounded-full text-muted hover:text-ink hover:bg-raised transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" aria-live="polite">
+        {messages.length === 0 && (
+          <div>
+            <p className="text-muted mb-3">AI membaca harga, indikator dan fundamental {kode} yang tampil di layar.</p>
+            <div className="space-y-1">
+              {SARAN.map(s => (
+                <button key={s} onClick={() => sendMessage(s)}
+                  className="block w-full text-left px-3 py-2 rounded-md text-ink hover:bg-raised transition-colors">
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
-              <p className="text-xs text-gray-500 text-center mt-8">
-                Tanya apa saja tentang {stockData?.ticker}!<br/>
-                Contoh: "Apakah sekarang waktu yang baik untuk beli?"
-              </p>
-            )}
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] text-xs px-3 py-2 rounded-xl leading-relaxed
-                  ${m.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-200"}`}>
-                  {m.content}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-800 text-gray-400 text-xs px-3 py-2 rounded-xl">Sedang berpikir...</div>
-              </div>
-            )}
-            <div ref={bottomRef} />
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
+            <p className={`whitespace-pre-wrap leading-relaxed ${m.role === "user"
+              ? "max-w-[85%] bg-raised px-3 py-2 rounded-md"
+              : m.error ? "text-neg-ink" : "text-ink"}`}>
+              {m.content}
+            </p>
           </div>
-          <div className="p-3 border-t border-gray-800 flex gap-2">
-            <input value={input} onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && sendMessage()}
-              placeholder="Ketik pertanyaan..."
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-500" />
-            <button onClick={sendMessage} disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 py-2 rounded-lg text-xs transition">
-              Kirim
-            </button>
-          </div>
-        </div>
-      )}
-      <button onClick={() => setOpen(o => !o)}
-        className="bg-blue-600 hover:bg-blue-700 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-xl transition ml-auto">
-        💬
-      </button>
-    </div>
+        ))}
+        {loading && <p className="text-muted">Menulis jawaban…</p>}
+        <div ref={bottomRef} />
+      </div>
+
+      <form onSubmit={e => { e.preventDefault(); sendMessage(); }} className="p-4 border-t border-line flex gap-2 shrink-0">
+        <label htmlFor="chat-input" className="sr-only">Pertanyaan</label>
+        <input id="chat-input" ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+          placeholder={`Tanya soal ${kode}…`}
+          className="flex-1 h-[34px] bg-ground border border-line rounded-full px-4 outline-none focus:border-control placeholder:text-faint" />
+        <button type="submit" disabled={loading || !input.trim()}
+          className="h-[34px] px-4 rounded-full bg-ink text-ground font-semibold disabled:opacity-40 hover:bg-white/85 transition">
+          Kirim
+        </button>
+      </form>
+    </aside>
   );
 }

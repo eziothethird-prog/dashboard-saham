@@ -102,7 +102,7 @@ baca fundamental, tanya AI.
 
 ### B-06 · Deploy (Next - Fase 6)
 - Frontend → Vercel
-- Backend → Railway
+- Backend → Vercel (project terpisah, root `backend`)
 - Set env vars di kedua platform
 
 ---

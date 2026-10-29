@@ -6,6 +6,10 @@ import pandas as pd
 from datetime import datetime
 import os
 
+# Vercel Functions hanya bisa menulis ke /tmp; yfinance menyimpan cache timezone & cookie di disk.
+if os.getenv("VERCEL"):
+    yf.set_tz_cache_location("/tmp/yfinance-cache")
+
 app = FastAPI()
 
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://dashboard-saham.vercel.app")
@@ -14,6 +18,8 @@ allowed_origins = [o.strip() for o in _raw_origins.split(",")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    # Preview deployment Vercel: dashboard-saham-git-<branch>-<akun>.vercel.app
+    allow_origin_regex=r"https://dashboard-saham-[a-z0-9-]+\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -139,6 +145,38 @@ def get_stock_info(ticker: str):
             val = info.get(key, default)
             return val if val not in [None, "N/A", float("inf")] else default
 
+        # Laporan tahunan: growth & DER dihitung sendiri karena growth kuartalan yfinance tidak stabil
+        # (GGRM earningsGrowth pernah 111.9 = +11.194%).
+        def row(df, name, col):
+            try:
+                v = df.loc[name].iloc[col]
+                return None if pd.isna(v) else float(v)
+            except (KeyError, IndexError, AttributeError):
+                return None
+
+        def growth(now, prev):
+            return round((now - prev) / abs(prev), 4) if now is not None and prev else None
+
+        try:
+            inc = stock.income_stmt
+            rev_now, rev_prev = row(inc, "Total Revenue", 0), row(inc, "Total Revenue", 1)
+            ni_now, ni_prev = row(inc, "Net Income", 0), row(inc, "Net Income", 1)
+            fy = [c.year for c in inc.columns[:2]]
+        except Exception:
+            rev_now = rev_prev = ni_now = ni_prev = None
+            fy = []
+
+        try:
+            bs = stock.balance_sheet
+            liab, equity = row(bs, "Total Liabilities Net Minority Interest", 0), row(bs, "Stockholders Equity", 0)
+            der = round(liab / equity, 4) if liab is not None and equity else None
+        except Exception:
+            der = None
+
+        npm = safe("profitMargins")
+        if npm is None and ni_now is not None and rev_now:
+            npm = ni_now / rev_now
+
         return {
             "nama":           safe("longName", ticker),
             "sektor":         safe("sector", "-"),
@@ -147,8 +185,14 @@ def get_stock_info(ticker: str):
             "pe_ratio":       safe("trailingPE"),
             "pb_ratio":       safe("priceToBook"),
             "roe":            safe("returnOnEquity"),
+            "roa":            safe("returnOnAssets"),
             "eps":            safe("trailingEps"),
-            "dividend_yield": safe("dividendYield"),
+            "der":            der,                      # total liabilitas / ekuitas (x)
+            "npm":            npm,                      # rasio, 0.093 = 9,3%
+            "dividend_yield": safe("dividendYield"),    # sudah dalam persen
+            "revenue_growth":    growth(rev_now, rev_prev),
+            "net_income_growth": growth(ni_now, ni_prev),
+            "tahun_buku":     fy,                       # [tahun terbaru, tahun pembanding]
             "52w_high":       safe("fiftyTwoWeekHigh"),
             "52w_low":        safe("fiftyTwoWeekLow"),
             "deskripsi":      safe("longBusinessSummary", "-"),
@@ -211,9 +255,6 @@ SEKTOR_PEERS = {
     "EXCL": ["TLKM.JK", "ISAT.JK", "FREN.JK"],
     "ISAT": ["TLKM.JK", "EXCL.JK", "FREN.JK"],
     "ASII": ["AUTO.JK", "SMSM.JK", "INDS.JK"],
-    "UNVR": ["ICBP.JK", "MYOR.JK", "INDF.JK"],
-    "ICBP": ["UNVR.JK", "MYOR.JK", "INDF.JK"],
-    "MYOR": ["UNVR.JK", "ICBP.JK", "INDF.JK"],
     "GOTO": ["BUKA.JK", "EMTK.JK"],
     "BUKA": ["GOTO.JK", "EMTK.JK"],
     "ADRO": ["PTBA.JK", "ITMG.JK", "HRUM.JK"],
@@ -225,6 +266,17 @@ SEKTOR_PEERS = {
     "SMRA": ["BSDE.JK", "CTRA.JK", "PWON.JK"],
     "BSDE": ["SMRA.JK", "CTRA.JK", "PWON.JK"],
 }
+
+# Consumer goods: setiap anggota grup jadi peer anggota lain (maks 5).
+CONSUMER_GROUPS = [
+    ["ICBP", "INDF", "MYOR", "UNVR", "CMRY", "ULTJ", "ROTI"],   # makanan & minuman
+    ["GGRM", "HMSP", "WIIM"],                                   # rokok
+    ["JPFA", "CPIN", "MAIN"],                                   # pakan & unggas
+    ["SIDO", "KLBF", "KAEF"],                                   # farmasi & jamu
+]
+for _grup in CONSUMER_GROUPS:
+    for _kode in _grup:
+        SEKTOR_PEERS[_kode] = [f"{k}.JK" for k in _grup if k != _kode][:5]
 
 def _fetch_peer(ticker_jk: str) -> dict | None:
     try:
@@ -239,6 +291,7 @@ def _fetch_peer(ticker_jk: str) -> dict | None:
             "pe_ratio":   safe("trailingPE"),
             "pb_ratio":   safe("priceToBook"),
             "roe":        safe("returnOnEquity"),
+            "npm":        safe("profitMargins"),
             "market_cap": safe("marketCap"),
         }
     except Exception:

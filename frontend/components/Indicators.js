@@ -1,49 +1,75 @@
+import { num, rp, signed, signedPct, tone } from "@/lib/format";
+
+function Row({ label, children, sub }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2 border-b border-rule last:border-0">
+      <span className="text-muted">{label}</span>
+      <span className="text-right">
+        <span className="num text-ink">{children}</span>
+        {sub && <span className="block text-xs text-muted">{sub}</span>}
+      </span>
+    </div>
+  );
+}
+
+// A track with labelled ends and one marker; the fill is the true position.
+function Track({ left, right, pos, ticks = [] }) {
+  const p = Math.min(100, Math.max(0, pos));
+  return (
+    <div>
+      <div className="relative h-1.5 rounded-full bg-raised">
+        {ticks.map(t => <span key={t} className="absolute top-[-3px] w-px h-3 bg-control" style={{ left: `${t}%` }} />)}
+        <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-accent border-2 border-surface"
+          style={{ left: `${p}%` }} />
+      </div>
+      <div className="flex justify-between text-xs text-muted mt-1.5 num">
+        <span>{left}</span><span>{right}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Indicators({ data }) {
-  const cards = [
-    { label: "RSI (14)",    value: data.rsi,
-      note: data.rsi > 70 ? "Overbought" : data.rsi < 30 ? "Oversold" : "Normal",
-      color: data.rsi > 70 ? "text-red-400" : data.rsi < 30 ? "text-green-400" : "text-gray-400" },
-    { label: "MACD",        value: data.macd,        note: "Line",   color: "text-blue-400" },
-    { label: "MACD Signal", value: data.macd_signal, note: "Signal", color: "text-purple-400" },
-    { label: "MA 20", value: data.ma20 != null ? `Rp ${data.ma20.toLocaleString("id-ID")}` : "-",          note: "20 hari", color: "text-yellow-400" },
-    { label: "MA 50", value: data.ma50 != null ? `Rp ${data.ma50.toLocaleString("id-ID")}` : "Data kurang", note: "50 hari", color: "text-violet-400" },
-  ];
+  const { rsi, macd, macd_signal, ma20, ma50, harga, support, resistance } = data;
+  const rsiState = rsi > 70 ? "overbought" : rsi < 30 ? "oversold" : "netral";
+  const hist = macd - macd_signal;
+  const vsMa = ma => (ma ? ((harga - ma) / ma) * 100 : null);
+  const range = resistance - support;
+  const posRange = range > 0 ? ((harga - support) / range) * 100 : 50;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {cards.map(c => (
-          <div key={c.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-            <p className={`text-lg font-semibold ${c.color}`}>{c.value}</p>
-            <p className="text-xs text-gray-600 mt-1">{c.note}</p>
-          </div>
-        ))}
+    <section className="card p-5 h-full flex flex-col gap-5" aria-labelledby="teknikal-judul">
+      <h2 id="teknikal-judul" className="text-base font-semibold">Teknikal</h2>
+
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <span className="text-muted">RSI 14 hari</span>
+          <span>
+            <span className="num text-xl">{num(rsi, 1)}</span>{" "}
+            <span className={rsi > 70 ? "text-negative" : rsi < 30 ? "text-positive" : "text-muted"}>{rsiState}</span>
+          </span>
+        </div>
+        <Track left="0" right="100" pos={rsi} ticks={[30, 70]} />
       </div>
 
-      {/* Support & Resistance */}
-      {(data.support != null || data.resistance != null) && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-gray-900 border border-green-900/40 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Support (20H)</p>
-              <p className="text-lg font-semibold text-green-400">
-                Rp {data.support?.toLocaleString("id-ID")}
-              </p>
-            </div>
-            <span className="text-2xl opacity-30">📉</span>
+      <div>
+        <Row label="MACD" sub={`signal ${num(macd_signal, 2)}`}>{num(macd, 2)}</Row>
+        <Row label="Histogram">
+          <span className={tone(hist)}>{signed(hist, 2)}</span>
+        </Row>
+        <Row label="MA20" sub={ma20 != null ? `harga ${signedPct(vsMa(ma20), 1)} dari MA20` : null}>{rp(ma20)}</Row>
+        <Row label="MA50" sub={ma50 != null ? `harga ${signedPct(vsMa(ma50), 1)} dari MA50` : "butuh 50 hari data"}>{rp(ma50)}</Row>
+      </div>
+
+      {support != null && resistance != null && (
+        <div className="mt-auto">
+          <div className="flex items-baseline justify-between mb-3">
+            <span className="text-muted">Rentang 20 hari</span>
+            <span className="text-xs text-muted">harga di <span className="num text-ink">{num(posRange, 0)}%</span> rentang</span>
           </div>
-          <div className="bg-gray-900 border border-red-900/40 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Resistance (20H)</p>
-              <p className="text-lg font-semibold text-red-400">
-                Rp {data.resistance?.toLocaleString("id-ID")}
-              </p>
-            </div>
-            <span className="text-2xl opacity-30">📈</span>
-          </div>
+          <Track left={`Support ${num(support)}`} right={`Resist. ${num(resistance)}`} pos={posRange} />
         </div>
       )}
-    </div>
+    </section>
   );
 }

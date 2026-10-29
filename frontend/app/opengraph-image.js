@@ -5,75 +5,41 @@ export const alt = "Dashboard Analisa Saham Indonesia";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+// Same tokens as the app: flat ground, white ink, one blue on the price line.
+const LINE = [62, 58, 60, 52, 55, 47, 50, 41, 44, 36, 39, 30, 34, 26, 29, 22];
+
 export default function Image() {
+  const pts = LINE.map((y, i) => `${i * 40},${y * 4}`).join(" ");
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "flex-start",
-          background: "linear-gradient(135deg, #030712 0%, #0f172a 50%, #0c1a2e 100%)",
-          padding: "80px",
-          fontFamily: "sans-serif",
-        }}
-      >
-        {/* Grid lines decoration */}
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-          backgroundImage: "linear-gradient(rgba(59,130,246,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.05) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-          display: "flex",
-        }} />
-
-        {/* Chart bars decoration */}
-        <div style={{ position: "absolute", right: "80px", bottom: "80px", display: "flex", alignItems: "flex-end", gap: "12px", opacity: 0.15 }}>
-          {[120, 180, 140, 220, 160, 260, 200, 300, 240, 280].map((h, i) => (
-            <div key={i} style={{ width: "28px", height: `${h}px`, background: "#3b82f6", borderRadius: "4px 4px 0 0" }} />
-          ))}
+      <div style={{
+        width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between",
+        background: "#171719", padding: "72px 80px", fontFamily: "sans-serif", color: "#ffffff",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "26px", color: "#8a8c92" }}>
+          <svg width="44" height="44" viewBox="0 0 24 24">
+            <path d="M7 3v4M7 17v4M17 6v3M17 15v4" stroke="#8a8c92" strokeWidth="1.5" />
+            <rect x="4.5" y="7" width="5" height="10" fill="#4a8ad6" />
+            <rect x="14.5" y="9" width="5" height="6" fill="none" stroke="#ffffff" strokeWidth="1.5" />
+          </svg>
+          Dashboard Saham
         </div>
 
-        {/* Badge */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: "8px",
-          background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)",
-          borderRadius: "999px", padding: "6px 16px", marginBottom: "32px",
-        }}>
-          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e" }} />
-          <span style={{ color: "#93c5fd", fontSize: "18px", fontWeight: 600 }}>Bursa Efek Indonesia · Real-time</span>
-        </div>
-
-        {/* Title */}
-        <div style={{ fontSize: "72px", fontWeight: 800, color: "#ffffff", lineHeight: 1.1, marginBottom: "24px" }}>
-          Dashboard<br />
-          <span style={{ color: "#3b82f6" }}>Analisa Saham</span>
-        </div>
-
-        {/* Description */}
-        <div style={{ fontSize: "26px", color: "#94a3b8", marginBottom: "48px", maxWidth: "700px" }}>
-          Indikator teknikal · Data fundamental · Prediksi harga · Chat AI
-        </div>
-
-        {/* Tags */}
-        <div style={{ display: "flex", gap: "12px" }}>
-          {["RSI & MACD", "P/E & ROE", "Peer Comparison", "AI Analysis"].map(tag => (
-            <div key={tag} style={{
-              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "8px", padding: "8px 18px",
-              color: "#cbd5e1", fontSize: "18px",
-            }}>
-              {tag}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexDirection: "column", maxWidth: "560px" }}>
+            <div style={{ fontSize: "76px", fontWeight: 700, lineHeight: 1.02, letterSpacing: "-0.03em" }}>
+              Analisa saham BEI di satu layar
             </div>
-          ))}
+            <div style={{ fontSize: "26px", color: "#8a8c92", marginTop: "28px" }}>
+              Grafik, RSI, MACD, fundamental, peers, proyeksi dan tanya AI.
+            </div>
+          </div>
+          <svg width="600" height="260" viewBox="0 0 600 260">
+            <polyline points={pts} fill="none" stroke="#4a8ad6" strokeWidth="5" strokeLinejoin="round" />
+          </svg>
         </div>
 
-        {/* URL */}
-        <div style={{ position: "absolute", bottom: "48px", right: "80px", color: "#475569", fontSize: "20px" }}>
-          dashboard-saham.vercel.app
-        </div>
+        <div style={{ fontSize: "20px", color: "#8a8c92" }}>dashboard-saham.vercel.app</div>
       </div>
     ),
     { ...size }
