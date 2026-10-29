@@ -29,12 +29,14 @@ export function Markdown({ text }) {
     const numbered = line.match(/^(\d+)[.)]\s+(.*)/);
     if (bullet || numbered) {
       const type = bullet ? "ul" : "ol";
-      if (!list || list.type !== type) { flush(); list = { type, items: [] }; }
+      if (!list || list.type !== type) { flush(); list = { type, items: [], start: numbered ? Number(numbered[1]) : 1 }; }
       list.items.push(bullet ? bullet[1] : numbered[2]);
       continue;
     }
+    // Blank lines between list items keep the list going ("1.", blank, "2." stays one list).
+    if (!line) continue;
     flush();
-    if (!line || /^(-{3,}|\*{3,})$/.test(line)) continue;
+    if (/^(-{3,}|\*{3,})$/.test(line)) continue;
     const heading = line.match(/^#{1,6}\s+(.*)/);
     blocks.push(heading ? { type: "h", text: heading[1] } : { type: "p", text: line });
   }
@@ -45,7 +47,7 @@ export function Markdown({ text }) {
     if (b.type === "p") return <p key={i}>{inline(b.text)}</p>;
     const List = b.type;
     return (
-      <List key={i} className={`pl-5 space-y-1 ${b.type === "ul" ? "list-disc" : "list-decimal"} marker:text-muted`}>
+      <List key={i} start={b.type === "ol" ? b.start : undefined} className={`pl-5 space-y-1 ${b.type === "ul" ? "list-disc" : "list-decimal"} marker:text-muted`}>
         {b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}
       </List>
     );
