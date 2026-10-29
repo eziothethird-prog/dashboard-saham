@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Dashboard Analisa Saham Indonesia";
+export const alt = "Dashboard Analitik Saham Consumer Goods";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -27,10 +27,10 @@ export default function Image() {
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div style={{ display: "flex", flexDirection: "column", maxWidth: "560px" }}>
             <div style={{ fontSize: "76px", fontWeight: 700, lineHeight: 1.02, letterSpacing: "-0.03em" }}>
-              Analisa saham BEI di satu layar
+              Kinerja emiten consumer goods BEI
             </div>
             <div style={{ fontSize: "26px", color: "#8a8c92", marginTop: "28px" }}>
-              Grafik, RSI, MACD, fundamental, peers, proyeksi dan tanya AI.
+              CMRY, ICBP, JPFA, GGRM, MYOR: teknikal, 10 indikator fundamental, komparasi.
             </div>
           </div>
           <svg width="600" height="260" viewBox="0 0 600 260">

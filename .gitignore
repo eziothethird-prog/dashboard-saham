@@ -6,3 +6,7 @@ backend/.venv/
 
 # Vercel CLI
 .vercel/
+
+# Dokumen skripsi (lokal saja)
+*.docx
+DONE_PERBAIKI*.pdf

@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+import time
 import os
 
 # Vercel Functions hanya bisa menulis ke /tmp; yfinance menyimpan cache timezone & cookie di disk.
@@ -24,39 +24,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Lima emiten sampel penelitian (Tabel 3.5 proposal).
+EMITEN_SAMPEL = ["CMRY.JK", "ICBP.JK", "JPFA.JK", "GGRM.JK", "MYOR.JK"]
+
+# 10 indikator fundamental dan arah "lebih baik" (True = makin tinggi makin baik).
+INDIKATOR = {
+    "roe": True, "roa": True, "eps": True, "der": False, "pbv": False,
+    "npm": True, "per": False, "dividend_yield": True,
+    "revenue_growth": True, "net_income_growth": True,
+}
+
 # ============================================================
-# HELPER — hitung indikator teknikal
+# HELPER — indikator teknikal (deret penuh untuk grafik)
 # ============================================================
 def hitung_rsi(series, period=14):
     delta = series.diff()
     gain  = delta.clip(lower=0).rolling(period).mean()
     loss  = (-delta.clip(upper=0)).rolling(period).mean()
-    rs    = gain / loss
-    return (100 - (100 / (1 + rs))).iloc[-1].round(2)
+    return 100 - (100 / (1 + gain / loss))
 
 def hitung_macd(series):
-    ema12  = series.ewm(span=12).mean()
-    ema26  = series.ewm(span=26).mean()
-    macd   = ema12 - ema26
+    macd   = series.ewm(span=12).mean() - series.ewm(span=26).mean()
     signal = macd.ewm(span=9).mean()
-    return round(macd.iloc[-1], 4), round(signal.iloc[-1], 4)
+    return macd, signal
 
-def sinyal_rekomendasi(rsi, macd, macd_signal, ma20, ma50, harga):
-    skor = 0
-    # RSI
-    if rsi < 30:   skor += 2   # oversold → beli
-    elif rsi > 70: skor -= 2   # overbought → jual
-    # MACD crossover
-    if macd > macd_signal: skor += 1
-    else:                  skor -= 1
-    # MA crossover
-    if ma20 is not None and ma50 is not None:
-        if ma20 > ma50: skor += 1
-        else:           skor -= 1
-
-    if skor >= 2:    return "Beli", "green"
-    elif skor <= -2: return "Jual", "red"
-    else:            return "Tahan", "yellow"
+def bulat(v, d=2):
+    return None if v is None or pd.isna(v) else round(float(v), d)
 
 # ============================================================
 # ENDPOINT 1 — health check
@@ -66,251 +59,202 @@ def root():
     return {"status": "ok", "message": "Dashboard Saham API"}
 
 # ============================================================
-# ENDPOINT 2 — data harga historis + indikator
+# ENDPOINT 2 — komparasi 5 emiten (didefinisikan sebelum /stock/{ticker})
+# ============================================================
+@app.get("/stock/compare")
+def compare(tickers: str = ",".join(EMITEN_SAMPEL)):
+    daftar = [t.strip().upper() for t in tickers.split(",") if t.strip()][:8]
+    with ThreadPoolExecutor(max_workers=len(daftar) or 1) as ex:
+        hasil = list(ex.map(_fundamental_aman, daftar))
+    emiten = [h for h in hasil if h]
+    return {"emiten": emiten, "skor": hitung_skor(emiten)}
+
+# ============================================================
+# ENDPOINT 3 — data harga historis + indikator teknikal
 # ============================================================
 @app.get("/stock/{ticker}")
-def get_stock(ticker: str, period: str = "6mo"):
+def get_stock(ticker: str, period: str = "1y"):
     try:
-        stock = yf.Ticker(ticker)
-        df    = stock.history(period=period)
-
+        df = yf.Ticker(ticker).history(period=period)
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} tidak ditemukan")
 
-        # Hitung indikator
-        df["MA20"] = df["Close"].rolling(20).mean()
-        df["MA50"] = df["Close"].rolling(50).mean()
-        rsi              = hitung_rsi(df["Close"])
-        macd, macd_sig   = hitung_macd(df["Close"])
-        ma20             = round(df["MA20"].iloc[-1], 2) if not pd.isna(df["MA20"].iloc[-1]) else None
-        ma50             = round(df["MA50"].iloc[-1], 2) if not pd.isna(df["MA50"].iloc[-1]) else None
-        harga_terakhir   = round(df["Close"].iloc[-1], 2)
-        harga_sebelumnya = round(df["Close"].iloc[-2], 2) if len(df) >= 2 else harga_terakhir
-        lookback   = min(20, len(df))
-        support    = round(df["Low"].tail(lookback).min(), 2)
-        resistance = round(df["High"].tail(lookback).max(), 2)
-        perubahan        = round(harga_terakhir - harga_sebelumnya, 2)
-        perubahan_pct    = round((perubahan / harga_sebelumnya) * 100, 2) if harga_sebelumnya else 0
-        rekomendasi, warna = sinyal_rekomendasi(rsi, macd, macd_sig, ma20, ma50, harga_terakhir)
+        close = df["Close"]
+        df["MA20"] = close.rolling(20).mean()
+        df["MA50"] = close.rolling(50).mean()
+        df["RSI"] = hitung_rsi(close)
+        df["MACD"], df["SIGNAL"] = hitung_macd(close)
 
-        # Format data historis untuk grafik
-        historis = []
-        for idx, row in df.iterrows():
-            historis.append({
-                "date":   idx.strftime("%Y-%m-%d"),
-                "open":   round(row["Open"],  2),
-                "high":   round(row["High"],  2),
-                "low":    round(row["Low"],   2),
-                "close":  round(row["Close"], 2),
-                "volume": int(row["Volume"]),
-                "ma20":   round(row["MA20"], 2) if not pd.isna(row["MA20"]) else None,
-                "ma50":   round(row["MA50"], 2) if not pd.isna(row["MA50"]) else None,
-            })
+        harga_terakhir   = round(close.iloc[-1], 2)
+        harga_sebelumnya = round(close.iloc[-2], 2) if len(df) >= 2 else harga_terakhir
+        perubahan        = round(harga_terakhir - harga_sebelumnya, 2)
+
+        historis = [{
+            "date":   idx.strftime("%Y-%m-%d"),
+            "open":   bulat(row["Open"]),
+            "high":   bulat(row["High"]),
+            "low":    bulat(row["Low"]),
+            "close":  bulat(row["Close"]),
+            "volume": int(row["Volume"]),
+            "ma20":   bulat(row["MA20"]),
+            "ma50":   bulat(row["MA50"]),
+            "rsi":    bulat(row["RSI"]),
+            "macd":   bulat(row["MACD"], 4),
+            "signal": bulat(row["SIGNAL"], 4),
+        } for idx, row in df.iterrows()]
 
         return {
-            "ticker":       ticker.upper(),
-            "harga":        harga_terakhir,
-            "perubahan":    perubahan,
-            "perubahan_pct": perubahan_pct,
-            "rsi":          rsi,
-            "macd":         macd,
-            "macd_signal":  macd_sig,
-            "ma20":         ma20,
-            "ma50":         ma50,
-            "rekomendasi":  rekomendasi,
-            "warna":        warna,
-            "support":      support,
-            "resistance":   resistance,
-            "historis":     historis,
+            "ticker":        ticker.upper(),
+            "harga":         harga_terakhir,
+            "perubahan":     perubahan,
+            "perubahan_pct": round(perubahan / harga_sebelumnya * 100, 2) if harga_sebelumnya else 0,
+            "volume":        int(df["Volume"].iloc[-1]),
+            "historis":      historis,
         }
-
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================
-# ENDPOINT 3 — data fundamental
+# ENDPOINT 4 — profil + 10 indikator fundamental per tahun buku
 # ============================================================
 @app.get("/stock/{ticker}/info")
 def get_stock_info(ticker: str):
     try:
-        stock = yf.Ticker(ticker)
-        info  = stock.info
-
-        if not info or "symbol" not in info:
-            raise HTTPException(status_code=404, detail=f"Ticker {ticker} tidak ditemukan")
-
-        def safe(key, default=None):
-            val = info.get(key, default)
-            return val if val not in [None, "N/A", float("inf")] else default
-
-        # Laporan tahunan: growth & DER dihitung sendiri karena growth kuartalan yfinance tidak stabil
-        # (GGRM earningsGrowth pernah 111.9 = +11.194%).
-        def row(df, name, col):
-            try:
-                v = df.loc[name].iloc[col]
-                return None if pd.isna(v) else float(v)
-            except (KeyError, IndexError, AttributeError):
-                return None
-
-        def growth(now, prev):
-            return round((now - prev) / abs(prev), 4) if now is not None and prev else None
-
-        try:
-            inc = stock.income_stmt
-            rev_now, rev_prev = row(inc, "Total Revenue", 0), row(inc, "Total Revenue", 1)
-            ni_now, ni_prev = row(inc, "Net Income", 0), row(inc, "Net Income", 1)
-            fy = [c.year for c in inc.columns[:2]]
-        except Exception:
-            rev_now = rev_prev = ni_now = ni_prev = None
-            fy = []
-
-        try:
-            bs = stock.balance_sheet
-            liab, equity = row(bs, "Total Liabilities Net Minority Interest", 0), row(bs, "Stockholders Equity", 0)
-            der = round(liab / equity, 4) if liab is not None and equity else None
-        except Exception:
-            der = None
-
-        npm = safe("profitMargins")
-        if npm is None and ni_now is not None and rev_now:
-            npm = ni_now / rev_now
-
-        return {
-            "nama":           safe("longName", ticker),
-            "sektor":         safe("sector", "-"),
-            "industri":       safe("industry", "-"),
-            "market_cap":     safe("marketCap"),
-            "pe_ratio":       safe("trailingPE"),
-            "pb_ratio":       safe("priceToBook"),
-            "roe":            safe("returnOnEquity"),
-            "roa":            safe("returnOnAssets"),
-            "eps":            safe("trailingEps"),
-            "der":            der,                      # total liabilitas / ekuitas (x)
-            "npm":            npm,                      # rasio, 0.093 = 9,3%
-            "dividend_yield": safe("dividendYield"),    # sudah dalam persen
-            "revenue_growth":    growth(rev_now, rev_prev),
-            "net_income_growth": growth(ni_now, ni_prev),
-            "tahun_buku":     fy,                       # [tahun terbaru, tahun pembanding]
-            "52w_high":       safe("fiftyTwoWeekHigh"),
-            "52w_low":        safe("fiftyTwoWeekLow"),
-            "deskripsi":      safe("longBusinessSummary", "-"),
-        }
-
-    except HTTPException:
-        raise
+        data = fundamental(ticker.upper())
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    return data
 
 # ============================================================
-# ENDPOINT 4 — forecasting sederhana (Moving Average)
+# FUNDAMENTAL — dihitung dari laporan keuangan tahunan dengan rumus Tabel 3.7 proposal
 # ============================================================
-@app.get("/stock/{ticker}/forecast")
-def get_forecast(ticker: str, days: int = 14):
+_CACHE: dict[str, tuple[float, dict]] = {}
+_CACHE_TTL = 6 * 3600  # laporan tahunan jarang berubah; hemat panggilan ke Yahoo
+
+def _fundamental_aman(ticker):
     try:
-        stock = yf.Ticker(ticker)
-        df    = stock.history(period="1y")
-
-        if df.empty:
-            raise HTTPException(status_code=404, detail=f"Ticker {ticker} tidak ditemukan")
-
-        # Prediksi pakai rata-rata perubahan harian
-        closes        = df["Close"]
-        avg_change    = closes.pct_change().mean()
-        harga_terakhir = closes.iloc[-1]
-
-        forecast = []
-        harga = harga_terakhir
-        for i in range(1, days + 1):
-            harga = harga * (1 + avg_change)
-            tanggal = pd.Timestamp.now() + pd.Timedelta(days=i)
-            forecast.append({
-                "date":  tanggal.strftime("%Y-%m-%d"),
-                "harga": round(harga, 2),
-            })
-
-        return {
-            "ticker":   ticker.upper(),
-            "days":     days,
-            "forecast": forecast,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ============================================================
-# ENDPOINT 5 — peer comparison
-# ============================================================
-SEKTOR_PEERS = {
-    "BBCA": ["BBRI.JK", "BMRI.JK", "BBNI.JK", "BNGA.JK"],
-    "BBRI": ["BBCA.JK", "BMRI.JK", "BBNI.JK", "BNGA.JK"],
-    "BMRI": ["BBCA.JK", "BBRI.JK", "BBNI.JK", "BNGA.JK"],
-    "BBNI": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BNGA.JK"],
-    "BNGA": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK"],
-    "BRIS": ["BBCA.JK", "BBRI.JK", "BMRI.JK", "BBNI.JK"],
-    "TLKM": ["EXCL.JK", "ISAT.JK", "FREN.JK"],
-    "EXCL": ["TLKM.JK", "ISAT.JK", "FREN.JK"],
-    "ISAT": ["TLKM.JK", "EXCL.JK", "FREN.JK"],
-    "ASII": ["AUTO.JK", "SMSM.JK", "INDS.JK"],
-    "GOTO": ["BUKA.JK", "EMTK.JK"],
-    "BUKA": ["GOTO.JK", "EMTK.JK"],
-    "ADRO": ["PTBA.JK", "ITMG.JK", "HRUM.JK"],
-    "PTBA": ["ADRO.JK", "ITMG.JK", "HRUM.JK"],
-    "ITMG": ["ADRO.JK", "PTBA.JK", "HRUM.JK"],
-    "ANTM": ["MDKA.JK", "INCO.JK"],
-    "MDKA": ["ANTM.JK", "INCO.JK"],
-    "BREN": ["AKRA.JK", "RAJA.JK"],
-    "SMRA": ["BSDE.JK", "CTRA.JK", "PWON.JK"],
-    "BSDE": ["SMRA.JK", "CTRA.JK", "PWON.JK"],
-}
-
-# Consumer goods: setiap anggota grup jadi peer anggota lain (maks 5).
-CONSUMER_GROUPS = [
-    ["ICBP", "INDF", "MYOR", "UNVR", "CMRY", "ULTJ", "ROTI"],   # makanan & minuman
-    ["GGRM", "HMSP", "WIIM"],                                   # rokok
-    ["JPFA", "CPIN", "MAIN"],                                   # pakan & unggas
-    ["SIDO", "KLBF", "KAEF"],                                   # farmasi & jamu
-]
-for _grup in CONSUMER_GROUPS:
-    for _kode in _grup:
-        SEKTOR_PEERS[_kode] = [f"{k}.JK" for k in _grup if k != _kode][:5]
-
-def _fetch_peer(ticker_jk: str) -> dict | None:
-    try:
-        info = yf.Ticker(ticker_jk).info
-        def safe(k):
-            v = info.get(k)
-            return v if v not in (None, "N/A", float("inf")) else None
-        return {
-            "ticker":     ticker_jk.replace(".JK", ""),
-            "nama":       safe("shortName") or ticker_jk.replace(".JK", ""),
-            "harga":      safe("currentPrice") or safe("regularMarketPrice"),
-            "pe_ratio":   safe("trailingPE"),
-            "pb_ratio":   safe("priceToBook"),
-            "roe":        safe("returnOnEquity"),
-            "npm":        safe("profitMargins"),
-            "market_cap": safe("marketCap"),
-        }
+        return fundamental(ticker)
     except Exception:
         return None
 
-@app.get("/stock/{ticker}/peers")
-def get_peers(ticker: str):
-    kode = ticker.upper().replace(".JK", "")
-    peer_list = SEKTOR_PEERS.get(kode, [])
-    if not peer_list:
-        return {"ticker": ticker.upper(), "peers": []}
+def fundamental(ticker: str) -> dict:
+    hit = _CACHE.get(ticker)
+    if hit and time.time() - hit[0] < _CACHE_TTL:
+        return hit[1]
 
-    results = []
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {executor.submit(_fetch_peer, p): p for p in peer_list}
-        for future in as_completed(futures):
-            r = future.result()
-            if r:
-                results.append(r)
+    stock = yf.Ticker(ticker)
+    info = stock.info
+    if not info or "symbol" not in info:
+        raise LookupError(f"Ticker {ticker} tidak ditemukan")
 
-    results.sort(key=lambda x: x.get("market_cap") or 0, reverse=True)
-    return {"ticker": ticker.upper(), "peers": results}
+    inc, bs = stock.income_stmt, stock.balance_sheet
+    # Harga penutupan riil (tanpa penyesuaian dividen) di hari bursa terakhir tiap tahun
+    harga = stock.history(period="6y", auto_adjust=False)["Close"]
+    harga_akhir_tahun = harga.groupby(harga.index.year).last()
+    div = stock.dividends
+    dps_per_tahun = div.groupby(div.index.year).sum() if not div.empty else pd.Series(dtype=float)
+
+    def nilai(df, nama, tahun):
+        for col in df.columns:
+            if col.year == tahun and nama in df.index:
+                v = df.loc[nama, col]
+                return None if pd.isna(v) else float(v)
+        return None
+
+    def bagi(a, b, kali=1.0):
+        return a / b * kali if a is not None and b not in (None, 0) else None
+
+    def tumbuh(now, prev):
+        return (now - prev) / abs(prev) * 100 if now is not None and prev not in (None, 0) else None
+
+    tahun_tersedia = sorted({c.year for c in inc.columns} & {c.year for c in bs.columns})
+    tahunan = []
+    for th in tahun_tersedia:
+        laba    = nilai(inc, "Net Income Common Stockholders", th) or nilai(inc, "Net Income", th)
+        pendapatan = nilai(inc, "Total Revenue", th)
+        ekuitas = nilai(bs, "Stockholders Equity", th)
+        aset    = nilai(bs, "Total Assets", th)
+        # "Total Utang" proposal = jumlah liabilitas di laporan keuangan
+        utang   = nilai(bs, "Total Liabilities Net Minority Interest", th)
+        saham   = nilai(bs, "Ordinary Shares Number", th) or nilai(bs, "Share Issued", th)
+        if laba is None or ekuitas is None:
+            continue  # kolom tahun yang kosong di Yahoo (biasanya tahun tertua)
+        p   = float(harga_akhir_tahun[th]) if th in harga_akhir_tahun.index else None
+        eps = bagi(laba, saham)
+        bvps = bagi(ekuitas, saham)
+        dps = float(dps_per_tahun[th]) if th in dps_per_tahun.index else 0.0
+        tahunan.append({
+            "tahun":             th,
+            "roe":               bagi(laba, ekuitas, 100),
+            "roa":               bagi(laba, aset, 100),
+            "eps":               eps,
+            "der":               bagi(utang, ekuitas, 100),
+            "pbv":               bagi(p, bvps),
+            "npm":               bagi(laba, pendapatan, 100),
+            "per":               bagi(p, eps),
+            "dividend_yield":    bagi(dps, p, 100),
+            "revenue_growth":    tumbuh(pendapatan, nilai(inc, "Total Revenue", th - 1)),
+            "net_income_growth": tumbuh(laba, nilai(inc, "Net Income Common Stockholders", th - 1) or nilai(inc, "Net Income", th - 1)),
+            # komponen mentah, untuk validasi manual di Excel
+            "laba_bersih": laba, "pendapatan": pendapatan, "ekuitas": ekuitas, "total_aset": aset,
+            "total_utang": utang, "saham_beredar": saham, "harga_akhir_tahun": p, "dps": dps,
+        })
+    for r in tahunan:
+        for k, v in r.items():
+            if isinstance(v, float):
+                r[k] = round(v, 4)
+
+    def safe(key, default=None):
+        v = info.get(key, default)
+        return v if v not in (None, "N/A", float("inf")) else default
+
+    data = {
+        "ticker":     ticker,
+        "nama":       safe("longName", ticker),
+        "sektor":     safe("sector", "-"),
+        "industri":   safe("industry", "-"),
+        "market_cap": safe("marketCap"),
+        "deskripsi":  safe("longBusinessSummary", "-"),
+        "tahunan":    tahunan,
+    }
+    _CACHE[ticker] = (time.time(), data)
+    return data
+
+# ============================================================
+# SKOR FUNDAMENTAL 0–100 — relatif terhadap emiten yang dibandingkan
+# ============================================================
+def hitung_skor(emiten: list[dict]) -> dict:
+    """Per tahun & per indikator: min-max antar emiten (searah 'lebih baik'),
+    lalu skor emiten = rata-rata nilai indikatornya x 100.
+    PER/PBV <= 0 (rugi / ekuitas negatif) dianggap terburuk."""
+    hasil = {e["ticker"]: {} for e in emiten}
+    semua_tahun = sorted({r["tahun"] for e in emiten for r in e["tahunan"]})
+    for th in semua_tahun:
+        baris = {e["ticker"]: next((r for r in e["tahunan"] if r["tahun"] == th), None) for e in emiten}
+        per_indikator = {t: {} for t in baris}
+        for ind, naik in INDIKATOR.items():
+            nilai = {t: (r or {}).get(ind) for t, r in baris.items()}
+            valid = {t: v for t, v in nilai.items() if v is not None and not (ind in ("per", "pbv") and v <= 0)}
+            for t, v in nilai.items():
+                if v is None:
+                    continue
+                if t not in valid:
+                    per_indikator[t][ind] = 0.0
+                    continue
+                lo, hi = min(valid.values()), max(valid.values())
+                n = 0.5 if hi == lo else (v - lo) / (hi - lo)
+                per_indikator[t][ind] = round((n if naik else 1 - n) * 100, 1)
+        for t, s in per_indikator.items():
+            if s:
+                hasil[t][th] = {"total": round(sum(s.values()) / len(s), 1), "indikator": s}
+    return hasil
+
+
+# Self-check skor: yang terbaik di semua indikator dapat 100, terburuk 0.
+_a = {"ticker": "A", "tahunan": [{"tahun": 1, **{k: (2 if naik else 1) for k, naik in INDIKATOR.items()}}]}
+_b = {"ticker": "B", "tahunan": [{"tahun": 1, **{k: (1 if naik else 2) for k, naik in INDIKATOR.items()}}]}
+assert hitung_skor([_a, _b])["A"][1]["total"] == 100 and hitung_skor([_a, _b])["B"][1]["total"] == 0

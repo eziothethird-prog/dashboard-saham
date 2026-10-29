@@ -15,11 +15,11 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata = {
-  title: "Dashboard Analisa Saham Indonesia",
-  description: "Analisis saham Indonesia real-time — indikator teknikal, data fundamental, prediksi harga, dan chat AI.",
+  title: "Dashboard Analitik Saham Consumer Goods",
+  description: "Evaluasi kinerja emiten consumer goods BEI: analisis teknikal, 10 indikator fundamental, dan komparasi emiten.",
   openGraph: {
-    title: "Dashboard Analisa Saham Indonesia",
-    description: "Analisis saham BEI real-time dengan RSI, MACD, fundamental, dan AI.",
+    title: "Dashboard Analitik Saham Consumer Goods",
+    description: "CMRY, ICBP, JPFA, GGRM, MYOR: teknikal, 10 indikator fundamental, dan komparasi.",
     url: "https://dashboard-saham.vercel.app",
     siteName: "Dashboard Saham",
     locale: "id_ID",

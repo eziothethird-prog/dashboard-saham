@@ -1,6 +1,6 @@
 # 📈 Dashboard Analisa Saham Indonesia
 
-Dashboard analisis saham Indonesia real-time dengan indikator teknikal, data fundamental, prediksi harga, perbandingan peers, simulasi portofolio, dan chat AI.
+Dashboard analitik evaluasi kinerja emiten consumer goods BEI (CMRY, ICBP, JPFA, GGRM, MYOR): overview, analisis teknikal, 10 indikator fundamental FY2022–FY2025, dan komparasi emiten.
 
 > **Demo:** [dashboard-saham.vercel.app](https://dashboard-saham.vercel.app)
 
@@ -14,10 +14,7 @@ Dashboard analisis saham Indonesia real-time dengan indikator teknikal, data fun
 | **Indikator Teknikal** | RSI(14), MACD, Support & Resistance |
 | **Data Fundamental** | P/E, P/B, ROE, EPS, Market Cap, Dividend Yield, 52W High/Low |
 | **Rekomendasi** | Badge Beli / Tahan / Jual otomatis berdasarkan skor RSI + MACD + MA crossover |
-| **Prediksi Harga** | Forecast 7 / 14 / 30 hari (on-demand) |
-| **Peer Comparison** | Tabel perbandingan saham sejenis di sektor yang sama |
 | **Portfolio Simulator** | Kalkulator P&L berdasarkan jumlah lot dan harga beli |
-| **Chat AI** | Tanya-jawab analisis saham via AI (model Gemma via OpenRouter) |
 
 ---
 
@@ -27,7 +24,6 @@ Dashboard analisis saham Indonesia real-time dengan indikator teknikal, data fun
 |-------|-----------|
 | Frontend | Next.js 16.2.7, React 19, Tailwind CSS v4, Recharts 3 |
 | Backend | FastAPI, Python, yfinance, pandas |
-| AI Chat | OpenRouter API — `google/gemma-4-31b-it:free` (gratis) |
 | Data | Yahoo Finance (real-time, tanpa database) |
 
 ---
@@ -68,10 +64,8 @@ Buat file `.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
-OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-> Dapatkan API key gratis di [openrouter.ai](https://openrouter.ai) — tidak butuh kartu kredit untuk model free tier.
 
 ```bash
 npm run dev
@@ -85,19 +79,18 @@ Frontend berjalan di `http://localhost:3000`.
 
 ```
 dashboard-saham/
+├── vercel.json                  # Vercel Services: /stock/* → backend, sisanya → frontend
 ├── frontend/
-│   ├── app/
-│   │   ├── page.js              # halaman utama + state management
-│   │   └── api/chat/route.js   # route handler → OpenRouter
-│   └── components/
-│       ├── SearchBar.js
-│       ├── StockChart.js
-│       ├── Indicators.js
-│       ├── FundamentalCard.js
-│       ├── ForecastChart.js
-│       ├── PeerComparison.js
-│       ├── PortfolioSimulator.js
-│       └── ChatAI.js
+│   ├── app/page.js              # satu halaman: Overview, Teknikal, Fundamental, Komparasi
+│   ├── components/
+│   │   ├── Overview.js
+│   │   ├── Technical.js
+│   │   ├── Fundamental.js
+│   │   ├── Comparison.js
+│   │   ├── DataTable.js
+│   │   ├── SearchBar.js
+│   │   └── Rail.js
+│   └── lib/                     # format angka, daftar 10 indikator
 └── backend/
     ├── main.py                  # semua endpoint FastAPI
     └── requirements.txt
@@ -108,13 +101,12 @@ dashboard-saham/
 ## API Endpoints
 
 ```
-GET /stock/{ticker}           → harga, RSI, MACD, MA, support, resistance, historis
-GET /stock/{ticker}/info      → fundamental (PE, PB, ROE, dll)
-GET /stock/{ticker}/forecast  → prediksi harga N hari ke depan
-GET /stock/{ticker}/peers     → perbandingan saham sejenis sektor
+GET /stock/{ticker}?period=1y          → harga harian OHLCV + MA20/50, RSI, MACD (period: 1mo, 3mo, 1y, 5y)
+GET /stock/{ticker}/info               → profil + 10 indikator fundamental per tahun buku (FY2022–FY2025)
+GET /stock/compare?tickers=CMRY.JK,…   → fundamental beberapa emiten + skor fundamental 0–100
 ```
 
-Contoh: `GET /stock/BBCA.JK?period=6mo`
+Contoh: `GET /stock/CMRY.JK?period=5y`
 
 Semua saham Indonesia menggunakan suffix `.JK` — SearchBar otomatis menambahkannya.
 
@@ -128,7 +120,6 @@ Saat import di Vercel: Root Directory `./`, Application Preset **Services**.
 
 Environment variable project:
 ```
-OPENROUTER_API_KEY=sk-or-v1-...
 ```
 `NEXT_PUBLIC_API_URL` dikosongkan di Vercel (frontend memanggil `/stock/*` di domain yang sama). Untuk lokal isi `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000` di `frontend/.env.local`.
 
@@ -136,4 +127,4 @@ OPENROUTER_API_KEY=sk-or-v1-...
 
 ## Disclaimer
 
-Data bersumber dari Yahoo Finance dan bisa mengalami keterlambatan. Prediksi harga menggunakan metode rata-rata historis sederhana — **bukan saran investasi**. Selalu lakukan riset mandiri sebelum membuat keputusan investasi.
+Data bersumber dari Yahoo Finance dan bisa mengalami keterlambatan. Dashboard ini **bukan saran investasi**. Selalu lakukan riset mandiri sebelum membuat keputusan investasi.
