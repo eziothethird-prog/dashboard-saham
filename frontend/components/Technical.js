@@ -68,6 +68,7 @@ const PERIODS = [
   { id: "3mo", label: "3B" },
   { id: "1y", label: "1T" },
   { id: "5y", label: "5T" },
+  { id: "riset", label: "2022–2025", title: "Periode penelitian: 1 Jan 2022 – 31 Des 2025" },
 ];
 
 function Toggle({ checked, onChange, children }) {
@@ -89,7 +90,7 @@ export default function Technical({ data, period, onPeriod }) {
   const [show, setShow] = useState({ ma: true, rsi: false, macd: false });
   const [dari, setDari] = useState("");
   const [sampai, setSampai] = useState("");
-  const long = period === "5y";
+  const long = period === "5y" || period === "riset";
   const rows = data.map((d, i) => ({
     ...d,
     id: d.date,
@@ -111,7 +112,7 @@ export default function Technical({ data, period, onPeriod }) {
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <nav aria-label="Periode" className="flex border-b border-line">
             {PERIODS.map(p => (
-              <button key={p.id} onClick={() => onPeriod(p.id)} aria-pressed={period === p.id}
+              <button key={p.id} onClick={() => onPeriod(p.id)} aria-pressed={period === p.id} title={p.title}
                 className={`num px-3 h-8 -mb-px border-b transition-colors ${period === p.id ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"}`}>
                 {p.label}
               </button>

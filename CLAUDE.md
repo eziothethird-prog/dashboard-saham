@@ -14,7 +14,7 @@ dashboard-saham/
 │   ├── app/page.js        # state pusat: ticker, periode, data harga, fundamental, komparasi
 │   ├── components/
 │   │   ├── Overview.js     # KPI (harga, volume, market cap, skor 0–100), grafik 30 hari, info emiten
-│   │   ├── Technical.js    # candlestick + MA, volume, RSI/MACD (toggle), tabel OHLCV
+│   │   ├── Technical.js    # candlestick + MA, volume, RSI/MACD (toggle), tabel OHLCV; periode 1B/3B/1T/5T + 2022–2025 (start/end tetap)
 │   │   ├── Fundamental.js  # 10 kartu FY terbaru vs th. lalu, tren per tahun, tabel per tahun + komponen laporan
 │   │   ├── Comparison.js   # tabel 10 indikator × emiten (terbaik disorot), radar, peringkat skor
 │   │   ├── DataTable.js    # tabel sorting + pagination

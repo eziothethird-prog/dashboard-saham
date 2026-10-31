@@ -10,6 +10,8 @@ import Rail from "@/components/Rail";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? ""; // kosong = backend satu domain (Vercel Services, /stock/*)
 const SAMPEL_JK = SAMPEL.map(s => `${s.kode}.JK`);
+// Periode penelitian proposal: 1 Jan 2022 – 31 Des 2025 (end eksklusif di yfinance).
+const PERIOD_QUERY = { riset: "start=2022-01-01&end=2026-01-01" };
 
 const normal = t => {
   const u = t.trim().toUpperCase();
@@ -19,22 +21,27 @@ const normal = t => {
 export default function Home() {
   const [ticker, setTicker] = useState(null);
   const [period, setPeriod] = useState("1y");
-  const [stock, setStock] = useState(null);
+  const [stock, setStock] = useState(null); // 1 tahun terakhir: Overview selalu pakai data terbaru
+  const [tech, setTech] = useState(null);   // data harga sesuai periode yang dipilih di Teknikal
   const [info, setInfo] = useState(null);
   const [compare, setCompare] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [techLoading, setTechLoading] = useState(false);
 
-  async function load(t, p = period) {
+  async function load(t) {
     setLoading(true);
     setError(null);
     try {
       const [sRes, iRes] = await Promise.all([
-        fetch(`${API}/stock/${t}?period=${p}`),
+        fetch(`${API}/stock/${t}?period=1y`),
         fetch(`${API}/stock/${t}/info`),
       ]);
       if (!sRes.ok) throw new Error(`Kode ${t.replace(".JK", "")} tidak ditemukan di Yahoo Finance.`);
-      setStock(await sRes.json());
+      const s = await sRes.json();
+      setStock(s);
+      setTech(s);
+      setPeriod("1y");
       setInfo(iRes.ok ? await iRes.json() : null);
       setTicker(t);
     } catch (e) {
@@ -49,7 +56,7 @@ export default function Home() {
     const t = new URLSearchParams(window.location.search).get("t");
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sinkron dari URL sekali saat mount
     load(normal(t || SAMPEL[0].kode));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (ticker) window.history.replaceState(null, "", `?t=${ticker.replace(".JK", "")}`);
@@ -67,9 +74,16 @@ export default function Home() {
     return () => { alive = false; };
   }, [kunciKomparasi]);
 
-  function handlePeriod(p) {
+  async function handlePeriod(p) {
     setPeriod(p);
-    if (ticker) load(ticker, p);
+    if (p === "1y") return setTech(stock);
+    setTechLoading(true);
+    try {
+      const r = await fetch(`${API}/stock/${ticker}?${PERIOD_QUERY[p] ?? `period=${p}`}`);
+      if (r.ok) setTech(await r.json());
+    } finally {
+      setTechLoading(false);
+    }
   }
 
   const tahunSkor = info?.tahunan?.at(-1)?.tahun;
@@ -115,7 +129,9 @@ export default function Home() {
         {stock && (
           <div className={`space-y-6 ${loading ? "opacity-60 pointer-events-none transition-opacity" : "transition-opacity"}`} aria-busy={loading}>
             <Overview stock={stock} info={info} skor={skor} />
-            <Technical key={stock.ticker} data={stock.historis} period={period} onPeriod={handlePeriod} />
+            <div className={techLoading ? "opacity-60 pointer-events-none transition-opacity" : "transition-opacity"} aria-busy={techLoading}>
+              <Technical key={stock.ticker} data={(tech ?? stock).historis} period={period} onPeriod={handlePeriod} />
+            </div>
             <Fundamental key={`f-${stock.ticker}`} info={info} />
             <Comparison compare={compare} current={ticker} onSelect={t => { load(t); window.scrollTo({ top: 0 }); }} />
           </div>

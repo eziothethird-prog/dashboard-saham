@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
@@ -73,9 +73,13 @@ def compare(tickers: str = ",".join(EMITEN_SAMPEL)):
 # ENDPOINT 3 — data harga historis + indikator teknikal
 # ============================================================
 @app.get("/stock/{ticker}")
-def get_stock(ticker: str, period: str = "1y"):
+def get_stock(ticker: str, period: str = "1y",
+              start: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+              end: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
     try:
-        df = yf.Ticker(ticker).history(period=period)
+        # start/end (end eksklusif) untuk periode penelitian tetap, mis. 2022-01-01..2026-01-01
+        t = yf.Ticker(ticker)
+        df = t.history(start=start, end=end) if start else t.history(period=period)
         if df.empty:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} tidak ditemukan")
 
